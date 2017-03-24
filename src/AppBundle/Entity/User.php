@@ -2,10 +2,12 @@
 
 namespace AppBundle\Entity;
 
+use Symfony\Component\Security\Core\User\UserInterface;
+
 /**
  * User
  */
-class User
+class User implements UserInterface, \Serializable
 {
     /**
      * @var integer
@@ -36,7 +38,6 @@ class User
      * @var string
      */
     private $role;
-
 
     /**
      * Get id
@@ -167,5 +168,44 @@ class User
     {
         return $this->role;
     }
-}
 
+    public function getRoles() {
+        if ($this->role == 'admin') return array('ROLE_ADMIN');
+        else return array('ROLE_USER');
+    }
+
+    public function getSalt() {
+        return null;
+    }
+
+    public function getUsername() {
+        return $this->getEmail();
+    }
+
+    public function eraseCredentials() {
+
+    }
+    /** @see \Serializable::serialize() */
+    public function serialize()
+    {
+        return serialize(array(
+            $this->id,
+            $this->email,
+            $this->password,
+            // see section on salt below
+            // $this->salt,
+        ));
+    }
+
+    /** @see \Serializable::unserialize() */
+    public function unserialize($serialized)
+    {
+        list (
+            $this->id,
+            $this->username,
+            $this->password,
+            // see section on salt below
+            // $this->salt
+        ) = unserialize($serialized);
+    }
+}

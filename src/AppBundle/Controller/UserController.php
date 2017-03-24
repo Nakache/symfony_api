@@ -14,28 +14,39 @@ use Symfony\Component\HttpFoundation\JsonResponse;
  */
 class UserController extends Controller
 {
+    // if not connect
+    /*if (false) {
+        $response = new JsonResponse();
+        $response->setStatusCode(Response::HTTP_UNAUTHORIZED);
+        $response->setData(array(
+            'code' => '401',
+            'message' => 'Must be connected',
+            //'missingfields' => '',
+        ));
+    }*/
+
+    //$em = $this->getDoctrine()->getManager();
+    //$users = $em->getRepository('AppBundle:User')->findAll();
+
+    // $this->getDoctrine()->getManager()->flush();
+
+    /*
+        $em = $this->getDoctrine()->getManager();
+        $em->remove($user);
+        $em->flush($user);
+
+        return $this->redirectToRoute('user_index');
+    */
+
     /**
      * Lists all user entities.
      *
      */
     public function indexAction()
     {
-        echo 'indexAction'; die();
-
-        $em = $this->getDoctrine()->getManager();
-
-        $users = $em->getRepository('AppBundle:User')->findAll();
-
+        $app_user = $this->getUser();
+        dump($app_user);
         die();
-    }
-
-    /**
-     * Lists all user entities.
-     *
-     */
-    public function badAction()
-    {
-        return $this->errorResponse();
     }
 
     /**
@@ -44,11 +55,7 @@ class UserController extends Controller
      */
     public function searchAction()
     {
-        echo 'searchAction'; die();
-        $em = $this->getDoctrine()->getManager();
-
-        $users = $em->getRepository('AppBundle:User')->findAll();
-
+        $app_user = $this->getUser();
         die();
     }
 
@@ -58,15 +65,13 @@ class UserController extends Controller
      */
     public function newAction(Request $request)
     {
-        // if not connect
-        if (false) {
-            $response = new JsonResponse();
-            $response->setStatusCode(Response::HTTP_UNAUTHORIZED);
-            $response->setData(array(
-                'code' => '401',
-                'message' => 'Must be connected',
-                //'missingfields' => '',
-            ));
+        $app_user = $this->getUser();
+        dump($app_user);
+        die();
+
+        // if not admin
+        if ( !in_array('ROLE_ADMIN', $app_user->getRoles()) ) {
+            return $this->deniedResponse();
         }
 
         $user = new User();
@@ -79,37 +84,15 @@ class UserController extends Controller
             $is_valid = $users->checkIfValid($content);
 
             if ($is_valid) {
-
                 $users->jsonBind($user, $content);
                 $em = $this->getDoctrine()->getManager();
                 $em->persist($user);
                 $em->flush($user);
-
-                $response = new JsonResponse();
-                $response->setStatusCode(Response::HTTP_CREATED);
-                $response->setData(array(
-                    $content
-                ));
+                return $this->createResponse($content);
             } else {
                 return $this->errorResponse();
             }
         }
-
-
-
-        /*
-            const HTTP_OK = 200;
-            const HTTP_CREATED = 201;
-            const HTTP_ACCEPTED = 202;
-            const HTTP_BAD_REQUEST = 400;
-            const HTTP_UNAUTHORIZED = 401;
-            const HTTP_FORBIDDEN = 403;
-            const HTTP_NOT_FOUND = 404;
-        */
-
-        die();
-
-        return $this->redirectToRoute('user_show', array('id' => $user->getId()));
     }
 
     /**
@@ -118,8 +101,7 @@ class UserController extends Controller
      */
     public function showAction(User $user)
     {
-        echo 'showAction';
-        dump($user);
+        $app_user = $this->getUser();
         die();
     }
 
@@ -129,11 +111,8 @@ class UserController extends Controller
      */
     public function editAction(Request $request, User $user)
     {
-        echo 'editAction';
-        dump($user);
+        $app_user = $this->getUser();
         die();
-
-        $this->getDoctrine()->getManager()->flush();
     }
 
     /**
@@ -142,15 +121,29 @@ class UserController extends Controller
      */
     public function deleteAction(Request $request, User $user)
     {
-        echo 'deleteAction';
-        dump($user);
+        $app_user = $this->getUser();
+        //dump($user);
         die();
+    }
 
-        $em = $this->getDoctrine()->getManager();
-        $em->remove($user);
-        $em->flush($user);
+    private function createResponse($data) {
+        $response = new JsonResponse();
+        $response->setStatusCode(Response::HTTP_CREATED);
+        $response->setData(array(
+            $data
+        ));
+        return $response;
+    }
 
-        return $this->redirectToRoute('user_index');
+    private function deniedResponse() {
+        $response = new JsonResponse();
+        $response->setStatusCode(Response::HTTP_UNAUTHORIZED);
+        $response->setData(array(
+            'code' => '403',
+            'message' => 'Must be admin',
+        ));
+
+        return $response;
     }
 
     private function errorResponse() {
@@ -162,5 +155,14 @@ class UserController extends Controller
         ));
 
         return $response;
+    }
+
+    /**
+     * Lists all user entities.
+     *
+     */
+    public function badAction()
+    {
+        return $this->errorResponse();
     }
 }

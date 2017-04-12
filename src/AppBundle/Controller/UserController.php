@@ -7,6 +7,13 @@ use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Serializer\Serializer;
+use Symfony\Component\Serializer\Encoder\XmlEncoder;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
+use JMS\Serializer\SerializerBuilder;
+
+
 
 /**
  * User controller.
@@ -45,7 +52,21 @@ class UserController extends Controller
     public function indexAction()
     {
         $app_user = $this->getUser();
-        dump($app_user);
+ 
+                //if not admin
+        if ( !in_array('ROLE_ADMIN', $app_user->getRoles()) ) {
+            return $this->deniedResponse();
+        }
+        $users = $this->get('app.lib_users');
+
+        $em = $this->getDoctrine()->getManager();
+        $user = $em->getRepository('AppBundle:User')->findAll();
+
+        $tbl=[];
+        foreach ($user as $key => $value) {
+           array_push($tbl, $this->UserToArray($value));
+        }
+        return $this->showResponse($tbl);
         die();
     }
 
@@ -53,9 +74,26 @@ class UserController extends Controller
      * Lists all user entities.
      *
      */
-    public function searchAction()
+    public function searchAction(Request $request)
     {
         $app_user = $this->getUser();
+
+        $name = $request->get('q');
+        $number = $request->get('count');
+        $em = $this->getDoctrine()->getManager();
+
+        //$parameters = array('q' => $name,'i' => $number);
+
+        $query = $em->createQueryBuilder('u')
+        ->select('u.lastname, u.email')
+        ->from('AppBundle:User','u')
+        ->where('u.lastname LIKE :q OR u.email LIKE :q')
+        ->setMaxResults($number)
+        ->setParameters(['q' => $name])
+        ->getQuery();
+
+        dump($query->execute());
+
         die();
     }
 
@@ -66,8 +104,6 @@ class UserController extends Controller
     public function newAction(Request $request)
     {
         $app_user = $this->getUser();
-        dump($app_user);
-        die();
 
         // if not admin
         if ( !in_array('ROLE_ADMIN', $app_user->getRoles()) ) {
@@ -88,6 +124,8 @@ class UserController extends Controller
                 $em = $this->getDoctrine()->getManager();
                 $em->persist($user);
                 $em->flush($user);
+                dump($content);
+                die();
                 return $this->createResponse($content);
             } else {
                 return $this->errorResponse();
@@ -99,10 +137,47 @@ class UserController extends Controller
      * Finds and displays a user entity.
      *
      */
-    public function showAction(User $user)
+    public function showAction(Request $request)
     {
+
         $app_user = $this->getUser();
-        die();
+
+        //if not admin
+        if ( !in_array('ROLE_ADMIN', $app_user->getRoles()) ) {
+            return $this->deniedResponse();
+        }
+        $users = $this->get('app.lib_users');
+
+        $id = $request->get("id");
+        $em = $this->getDoctrine()->getManager();
+        $user = $em->getRepository('AppBundle:User')->find($id);
+        $usr = $this->UserToArray($user);
+        if (!$user) {
+            return $this->errorResponse();
+        } else {
+            return $this->showResponse($usr);
+        }
+    }
+
+    /**
+     * Transforme un user en tableau.
+     *
+     */
+    private function UserToArray($user){
+        $id = $user->getId();
+        $firstname = $user->getFirstname();
+        $lastname = $user->getLastname();
+        $email = $user->getEmail();
+        $role = $user->getRole();
+
+        $usr = [
+            'id' => $id,
+            'lastname' => $lastname,
+            'firstname' => $firstname,
+            'email' => $email,
+            'role' => $role
+        ];
+        return $usr;
     }
 
     /**
@@ -112,7 +187,27 @@ class UserController extends Controller
     public function editAction(Request $request, User $user)
     {
         $app_user = $this->getUser();
-        die();
+
+        //if not admin
+        if ( !in_array('ROLE_ADMIN', $app_user->getRoles()) ) {
+            return $this->deniedResponse();
+        }
+        $id = $request->get("id");
+        $em = $this->getDoctrine()->getManager();
+        $user = $em->getRepository('AppBundle:User')->find($id);
+        $content = json_decode($request->getContent(),1);
+
+        if (!$content) {
+            return $this->errorResponse();
+        } else {
+            foreach ($content as $key => $value) {
+                $fct = "set".ucfirst($key);
+                $user->$fct($value);
+                $em->persist($user);
+                $em->flush($user);
+                return $this->modifiedResponse($content);
+            }
+        }
     }
 
     /**
@@ -122,8 +217,54 @@ class UserController extends Controller
     public function deleteAction(Request $request, User $user)
     {
         $app_user = $this->getUser();
-        //dump($user);
-        die();
+
+        //if not admin
+        if ( !in_array('ROLE_ADMIN', $app_user->getRoles()) ) {
+            return $this->deniedResponse();
+        }
+        $id = $request->get("id");
+        $em = $this->getDoctrine()->getManager();
+        $user = $em->getRepository('AppBundle:User')->find($id);
+        
+        if (!$user) {
+            return $this->errorResponse();
+        } else {
+            $em->remove($user);
+            $em->flush();
+            return $this->deleteResponse();
+        }
+
+    }
+
+    private function showResponse($data) {
+        $response = new JsonResponse();
+        $response->setStatusCode(Response::HTTP_CREATED);
+        $response->setData(array(
+            'code' => '200',
+            $data
+        ));
+        return $response;
+    }
+
+
+    private function deleteResponse() {
+        $response = new JsonResponse();
+        $response->setStatusCode(Response::HTTP_CREATED);
+        $response->setData(array(
+            'code' => '200',
+            'message' => 'User successfully deleted',
+        ));
+        return $response;
+    }
+
+    private function modifiedResponse() {
+        $response = new JsonResponse();
+        $response->setStatusCode(Response::HTTP_CREATED);
+        $response->setData(array(
+            'code' => '200',
+            'message' => 'User successfully modified',
+        ));
+        return $response;
     }
 
     private function createResponse($data) {
@@ -131,6 +272,8 @@ class UserController extends Controller
         $response->setStatusCode(Response::HTTP_CREATED);
         $response->setData(array(
             $data
+            // 'code' => '201',
+            // 'message' => 'User successfully created',
         ));
         return $response;
     }
@@ -140,7 +283,7 @@ class UserController extends Controller
         $response->setStatusCode(Response::HTTP_UNAUTHORIZED);
         $response->setData(array(
             'code' => '403',
-            'message' => 'Must be admin',
+            'message' => 'You must be admin',
         ));
 
         return $response;

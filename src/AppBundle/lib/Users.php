@@ -25,7 +25,7 @@ class Users {
 		$userRepo = $em->getRepository('AppBundle:User');
 
 		if ( (bool) $userRepo->findOneByEmail($user['email']) ) return false;
-
+		
 		return true;
 	}
 
